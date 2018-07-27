@@ -1,4 +1,4 @@
-OBJS = shash.o
+OBJS = shash.o test.o
 
 all: $(OBJS)
-	gcc $^ -lm -o $@
+	gcc $^ -lm -I. -o $@
