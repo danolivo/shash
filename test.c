@@ -44,6 +44,29 @@ DefaultCompareFunc(void* bucket1, void* bucket2)
 		return false;
 }
 
+void print(SHTAB *shtab, const char* comment)
+{
+	WorkItem	*res;
+
+	printf("START PRINT %s\n", comment);
+	for (SHASH_SeqReset(shtab); (res = (WorkItem *) SHASH_SeqNext(shtab)) != NULL; )
+		printf("--> [%lu] %d %d\n", shtab->SeqScanCurElem-1, res->blkno, res->hits);
+	printf("END PRINT\n");
+}
+void print_full_state(SHTAB *shtab, const char* comment)
+{
+	WorkItem	*res;
+	uint64		i;
+
+	printf("START PRINT %s. ElementsMaxNum=%lu tableSize=%lu factor=%3.1f Elems=%lu\n", comment, shtab->Header.ElementsMaxNum, shtab->HTableSize, shtab->Header.FillFactor, SHASH_Entries(shtab));
+	for (i=0; i<shtab->HTableSize; i++)
+	{
+		uint64 pos = i*shtab->Header.ElementSize;
+		WorkItem *item = (WorkItem *) &shtab->Elements[pos];
+		printf("--> [%lu] blk=%d, hits=%d state=%d\n", i, item->blkno, item->hits, shtab->state[i]);
+	}
+	printf("END PRINT\n");
+}
 int main()
 {
 	SHTABCTL	shctl;
@@ -54,7 +77,7 @@ int main()
 	int blkno;
 	int hits;
 
-	shctl.FillFactor = 1;
+	shctl.FillFactor = 0.5;
 	shctl.ElementsMaxNum = MAX_NUM;
 	shctl.ElementSize = sizeof(WorkItem);
 	shctl.KeySize = sizeof(int);
@@ -64,62 +87,84 @@ int main()
 	item.hits = 0;
 
 	test = SHASH_Create(shctl);
-	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, HASH_ENTER, &found);
+	print(test, "F1");
+	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, SHASH_ENTER, &found);
+	res->hits = 11;
 	assert(!found  && (res != NULL));
-	assert((res->blkno == 5) && (res->hits == 0));
-
+	print(test, "F2");
+	assert((res->blkno == 5) && (res->hits == 11));
 	item.blkno = 101;
 	item.hits = 0;
-	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, HASH_ENTER, &found);
+	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, SHASH_ENTER, &found);
+	res->hits = 1;
 	assert(!found  && (res != NULL));
-	assert((res->blkno == 101) && (res->hits == 0));
-
-	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, HASH_FIND, &found);
-	assert((found) && (res != NULL));
-	assert((res->blkno == 101) && (res->hits == 0));
-	res->hits++;
-
-	blkno = 4;
-	res = (WorkItem *) SHASH_Search(test, (void *)&blkno, HASH_FIND, &found);
-	assert(!found);
-	assert(res == NULL);
-	for (blkno=0; blkno<test->Header.ElementsMaxNum; blkno++)
-	{
-		WorkItem *a = (WorkItem *) &test->Elements[blkno*test->Header.ElementSize];
-		printf("[%d] DATA: blk=%d hits=%d used=%d el=%lu\n", blkno, a->blkno, a->hits, test->used[blkno], test->nElements);
-	}
-//	for (SHASH_SeqReset(test); (res = (WorkItem *) SHASH_SeqNext(test)) != NULL; )
-//		printf("--> State: %d %d\n", res->blkno, res->hits);
-
-	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, HASH_FIND, &found);
+	assert((res->blkno == 101) && (res->hits == 1));
+	print(test, "F3");
+	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, SHASH_FIND, &found);
 	assert(found);
+	assert(res != NULL);
 	assert((res->blkno == 101) && (res->hits == 1));
 	res->hits++;
 
+	blkno = 4;
+	res = (WorkItem *) SHASH_Search(test, (void *)&blkno, SHASH_FIND, &found);
+	assert(!found);
+	assert(res == NULL);
+	print(test, "F4");
+	res = (WorkItem *) SHASH_Search(test, (void *)&item.blkno, SHASH_FIND, &found);
+	assert(found);
+	assert((res->blkno == 101) && (res->hits == 2));
+	res->hits++;
+
+	printf("REMOVING TEST\n");
 	SHASH_Clean(test);
+	blkno=0; hits=0;
+	printf("Add\n");
+	while ( (res = SHASH_Search(test, (void *)&blkno, SHASH_ENTER, &found)) != NULL )
+	{
+		res->hits = hits++;
+		blkno++;
+	}
+	printf("Number of entries: %lu/%lu\n", SHASH_Entries(test), test->Header.ElementsMaxNum);
+	blkno--;
+
+	printf("REMOVE\n");
+	while ( (res = SHASH_Search(test, (void *)&blkno, SHASH_REMOVE, &found)) != NULL )
+	{
+		printf("REMOVE blkno=%d\n", blkno);
+		assert(found);
+		blkno--;
+	}
+	blkno = 111;
+	assert(SHASH_Entries(test) == 0);
+	print_full_state(test, "FULL PRINT AFTER DEL");
+	res = SHASH_Search(test, (void *)&blkno, SHASH_ENTER, &found);
+	assert(res != NULL);
+	assert(!found);
+	print_full_state(test, "FULL PRINT-2.1");
+	res = SHASH_Search(test, (void *)&blkno, SHASH_ENTER, &found);
+	assert(res != NULL);
+	assert(found);
+	printf("ELEMS=%lu\n", SHASH_Entries(test));
+	assert(SHASH_Entries(test) == 1);
+	print_full_state(test, "FULL PRINT-2");
+	printf("Number of entries: %lu/%lu\n", SHASH_Entries(test), test->Header.ElementsMaxNum);
 
 	blkno = 1000;
 	hits = 0;
-	while ((res = SHASH_Search(test, (void *)&blkno, HASH_ENTER, &found)) != NULL)
+	while ((res = SHASH_Search(test, (void *)&blkno, SHASH_ENTER, &found)) != NULL)
 	{
 		assert(!found);
 		blkno++;
 		res->hits = ++hits;
-		printf("-> elems=%lu\n", test->nElements);
+//		printf("-> elems=%lu\n", test->nElements);
 	}
-	printf("FULL TABLE: %d\n", blkno);
+	print_full_state(test, "FULL PRINT-3");
 
 	item.blkno = 1005;
-	res = SHASH_Search(test, (void *)&item.blkno, HASH_ENTER, &found);
+	res = SHASH_Search(test, (void *)&item.blkno, SHASH_ENTER, &found);
 	assert(found);
 	assert(res->hits == 6);
-
-	for (item.blkno = 0; item.blkno < SHASH_Entries(test); item.blkno++)
-	{
-		int a = test->lineptr[item.blkno];
-		WorkItem *b = (WorkItem *)&test->Elements[a*test->Header.ElementSize];
-		printf("[%d/%d]: blkno=%d hits=%d\n", item.blkno, a, b->blkno, b->hits);
-	}
 
 	SHASH_Destroy(test);
 	printf("TEST PASSED\n");
