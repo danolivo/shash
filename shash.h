@@ -28,7 +28,7 @@ typedef enum
 
 typedef	unsigned long int uint64;
 typedef	unsigned char uint8;
-typedef uint64 (*HashValueFunc) (void *key, uint64 size, uint64 base);
+typedef uint64 (*SHashValueFunc) (void *key, uint64 size, uint64 base);
 typedef bool (*CompareFunc) (void* bucket1, void* bucket2);
 
 
@@ -38,7 +38,7 @@ typedef struct SHTABCTL
 	uint64			KeySize;
 	uint64			ElementsMaxNum;
 	float			FillFactor;
-	HashValueFunc	HashFunc;
+	SHashValueFunc	HashFunc;
 	CompareFunc		CompFunc;
 } SHTABCTL;
 
@@ -59,5 +59,6 @@ extern uint64 SHASH_Entries(SHTAB* shtab);
 extern void SHASH_SeqReset(SHTAB* shtab);
 extern void* SHASH_SeqNext(SHTAB* shtab);
 extern void* SHASH_Search(SHTAB* shtab, void *keyPtr, SHASHACTION action, bool *foundPtr);
+extern uint64 DefaultHashValueFunc(void *key, uint64 size, uint64 base);
 
 #endif /* SHASH_H_ */

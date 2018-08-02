@@ -1,10 +1,14 @@
 #include "assert.h"
 #include "math.h"
-#include "shash.h"
 #include "stdlib.h"
 #include "string.h"
 #include "unistd.h"
 #include "stdio.h"
+
+#include "shash.h"
+
+#define pfree(x) (free(x))
+#define palloc(a) (calloc(1, a))
 
 void check(SHTAB* shtab)
 {
@@ -16,7 +20,7 @@ void check(SHTAB* shtab)
 SHTAB*
 SHASH_Create(SHTABCTL shctl)
 {
-	SHTAB*	shtab = (SHTAB *) calloc(1, sizeof(SHTAB));
+	SHTAB*	shtab = (SHTAB *) palloc(sizeof(SHTAB));
 
 	assert(shctl.ElementSize != 0);
 	assert(shctl.ElementSize >= shctl.KeySize);
@@ -24,9 +28,10 @@ SHASH_Create(SHTABCTL shctl)
 	shtab->Header = shctl;
 	shtab->HTableSize = shtab->Header.ElementsMaxNum*(2. - shtab->Header.FillFactor) + 1;
 	assert(shtab->HTableSize > shtab->Header.ElementsMaxNum);
+
 	/* Add one element as sign of empty value */
-	shtab->Elements = (char *) calloc(shtab->HTableSize, shctl.ElementSize);
-	shtab->state = (HESTATE *) calloc(shtab->HTableSize, sizeof(HESTATE));
+	shtab->Elements = (char *) palloc(shtab->HTableSize * shctl.ElementSize);
+	shtab->state = (HESTATE *) palloc(shtab->HTableSize * sizeof(HESTATE));
 	shtab->nElements = 0;
 	shtab->SeqScanCurElem = 0;
 
@@ -54,9 +59,9 @@ SHASH_Destroy(SHTAB* shtab)
 {
 	check(shtab);
 
-	free(shtab->Elements);
-	free(shtab->state);
-	free(shtab);
+	pfree(shtab->Elements);
+	pfree(shtab->state);
+	pfree(shtab);
 }
 
 uint64
@@ -200,4 +205,19 @@ SHASH_Search(SHTAB* shtab, void *keyPtr, SHASHACTION action, bool *foundPtr)
 
 	assert(0);
 	return NULL;
+}
+
+uint64
+DefaultHashValueFunc(void *key, uint64 size, uint64 base)
+{
+	uint64	sum = 0;
+	int i;
+
+	for (i = 0; i < size; i++)
+	{
+		uint64 x = ((char *)key)[i];
+		sum += x*x*x*x + x*x*x + x*x + x + 1;
+	}
+
+	return sum%base;
 }

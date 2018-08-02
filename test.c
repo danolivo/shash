@@ -16,22 +16,6 @@ typedef struct {
 
 #define MAX_NUM	(10)
 
-uint64
-DefaultHashValueFunc(void *key, uint64 size, uint64 base)
-{
-	char	byte;
-	uint64	sum = 0;
-	int i;
-
-	for (i = 0; i < size; i++)
-	{
-		uint64 x = ((char *)key)[i];
-		sum += x*x*x*x + x*x*x + x*x + x + 1;
-	}
-
-	return sum%base;
-}
-
 bool
 DefaultCompareFunc(void* bucket1, void* bucket2)
 {
