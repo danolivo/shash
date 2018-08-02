@@ -1,3 +1,18 @@
+/*
+ * shash.c
+ *
+ * Lightweight hash tables without dynamic expansion
+ *
+ *
+ * Copyright (c) 1996-2018, PostgreSQL Global Development Group
+ *
+ *
+ * IDENTIFICATION
+ *	  src/backend/utils/hash/shash.c
+ *
+ *-------------------------------------------------------------------------
+ */
+
 #include "assert.h"
 #include "math.h"
 #include "stdlib.h"
@@ -7,14 +22,18 @@
 
 #include "shash.h"
 
-#define pfree(x) (free(x))
-#define palloc(a) (calloc(1, a))
+#define pfree(x)	(free(x))
+#define palloc(x)	(calloc(1, x))
+#define Assert(x)	(assert(x))
 
-void check(SHTAB* shtab)
+static void check(SHTAB* shtab);
+
+static void
+check(SHTAB* shtab)
 {
-	assert(shtab != NULL);
-	assert(shtab->Elements != NULL);
-	assert(shtab->state != NULL);
+	Assert(shtab != NULL);
+	Assert(shtab->Elements != NULL);
+	Assert(shtab->state != NULL);
 }
 
 SHTAB*
@@ -22,12 +41,12 @@ SHASH_Create(SHTABCTL shctl)
 {
 	SHTAB*	shtab = (SHTAB *) palloc(sizeof(SHTAB));
 
-	assert(shctl.ElementSize != 0);
-	assert(shctl.ElementSize >= shctl.KeySize);
+	Assert(shctl.ElementSize != 0);
+	Assert(shctl.ElementSize >= shctl.KeySize);
 
 	shtab->Header = shctl;
 	shtab->HTableSize = shtab->Header.ElementsMaxNum*(2. - shtab->Header.FillFactor) + 1;
-	assert(shtab->HTableSize > shtab->Header.ElementsMaxNum);
+	Assert(shtab->HTableSize > shtab->Header.ElementsMaxNum);
 
 	/* Add one element as sign of empty value */
 	shtab->Elements = (char *) palloc(shtab->HTableSize * shctl.ElementSize);
@@ -69,7 +88,7 @@ SHASH_Entries(SHTAB* shtab)
 {
 	check(shtab);
 
-	assert((shtab->nElements >= 0) && (shtab->nElements <= shtab->Header.ElementsMaxNum));
+	Assert((shtab->nElements >= 0) && (shtab->nElements <= shtab->Header.ElementsMaxNum));
 	return shtab->nElements;
 }
 
@@ -88,7 +107,10 @@ SHASH_SeqNext(SHTAB* shtab)
 {
 	check(shtab);
 
-	assert(shtab->SeqScanCurElem < shtab->HTableSize);
+	if (shtab->SeqScanCurElem == shtab->HTableSize)
+		return NULL;
+
+	Assert(shtab->SeqScanCurElem < shtab->HTableSize);
 
 	do
 	{
@@ -114,10 +136,10 @@ SHASH_Search(SHTAB* shtab, void *keyPtr, SHASHACTION action, bool *foundPtr)
 
 	check(shtab);
 
-	assert(shtab->nElements <= shtab->Header.ElementsMaxNum);
+	Assert(shtab->nElements <= shtab->Header.ElementsMaxNum);
 
 	first = index = shtab->Header.HashFunc(keyPtr, shtab->Header.KeySize, shtab->HTableSize);
-	assert(index < shtab->HTableSize);
+	Assert(index < shtab->HTableSize);
 
 	if (foundPtr != NULL)
 		*foundPtr = false;
@@ -127,8 +149,6 @@ SHASH_Search(SHTAB* shtab, void *keyPtr, SHASHACTION action, bool *foundPtr)
 	 */
 	for(;;)
 	{
-//		uint64	pos = index*shtab->Header.ElementSize;
-
 		if (shtab->state[index] == SHASH_NUSED)
 		{
 			/* Empty position found */
@@ -151,7 +171,7 @@ SHASH_Search(SHTAB* shtab, void *keyPtr, SHASHACTION action, bool *foundPtr)
 			case SHASH_REMOVE:
 				break;
 			default:
-				assert(0);
+				Assert(0);
 			}
 
 			return result;
@@ -203,7 +223,7 @@ SHASH_Search(SHTAB* shtab, void *keyPtr, SHASHACTION action, bool *foundPtr)
 		}
 	}
 
-	assert(0);
+	Assert(0);
 	return NULL;
 }
 
